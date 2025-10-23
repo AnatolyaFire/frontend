@@ -2,7 +2,7 @@ import {
   ChatUser, 
   MessageType, 
   ChatHistoryRequest, 
-  SendMsgRequest, 
+  SendMsgRequest,
   ChatListResponse,
   ChatApiItem,
   ChatHistoryResponse,
@@ -16,14 +16,13 @@ export const getChatList = async (
   token: string,
   is_read: string = 'unread',
   chat_status: string = 'All',
-  limit: number = 20,
+  limit: number = 10,
   offset: number = 0,
   marketplace: string = ''
-): Promise<{ chats: ChatUser[]; total_count: number; total_unread: number }> => {
+): Promise<{ chats: ChatUser[]; total_count: number; total_unread: number; has_more: boolean }> => {
   
   let url = `${API_BASE_URL}/chats/chat-list?is_read=${is_read}&chat_status=${chat_status}&limit=${limit}&offset=${offset}`;
   
-  // Добавляем фильтр по маркетплейсу если указан
   if (marketplace) {
     url += `&marketplace=${marketplace}`;
   }
@@ -42,30 +41,28 @@ export const getChatList = async (
 
   const data: ChatListResponse = await response.json();
   
- const chats: ChatUser[] = data.messages.map((chat: ChatApiItem) => ({
-  id: chat.chat_id,
-  name: `Чат ${chat.marketplace} - ${chat.chat_id.slice(0, 8)}`, // Более понятное имя
-  lastMessage: chat.text.length > 50 ? chat.text.substring(0, 50) + '...' : chat.text,
-  time: formatTime(chat.created_at),
-  unreadCount: chat.unread_count,
-  isOnline: false, // Всегда false, так как API не предоставляет
-  isPinned: false,
-  clientId: chat.client_id,
-  marketplace: chat.marketplace,
-  chatStatus: chat.chat_status,
-  chatType: chat.chat_type,
-  messages: []
-}));
+  const chats: ChatUser[] = data.messages.map((chat: ChatApiItem) => ({
+    id: chat.chat_id,
+    name: `Чат ${chat.marketplace} - ${chat.chat_id.slice(0, 8)}`,
+    lastMessage: chat.text.length > 50 ? chat.text.substring(0, 50) + '...' : chat.text,
+    time: formatTime(chat.created_at),
+    unreadCount: chat.unread_count,
+    clientId: chat.client_id,
+    marketplace: chat.marketplace,
+    chatStatus: chat.chat_status,
+    chatType: chat.chat_type,
+    messages: []
+  }));
 
   return {
     chats,
     total_count: data.messages.length,
-    total_unread: data.total_unread_messages
+    total_unread: data.total_unread_messages,
+    has_more: data.messages.length === limit
   };
 };
 
 // Получение истории сообщений
-// В функции getChatHistory исправьте порядок сообщений
 export const getChatHistory = async (
   token: string,
   request: ChatHistoryRequest
@@ -86,30 +83,40 @@ export const getChatHistory = async (
   const data: ChatHistoryResponse = await response.json();
   
   // Преобразуем сообщения из API в нашу структуру
-  const messages: MessageType[] = data.messages.map((msg: MessageApiItem) => ({
-    id: msg.message_id,
-    text: msg.text,
-    time: formatTime(msg.created_at),
-    isOwn: msg.author_role === 'Seller',
-    status: msg.is_read ? 'read' : 'sent',
-    timestamp: msg.created_at,
-    authorId: msg.author_id,
-    authorRole: msg.author_role,
-    isRead: msg.is_read,
-    isImage: msg.is_image,
-    context: {
-      sku: msg.context.sku,
-      orderNumber: msg.context.order_number
-    },
-    rawData: msg.raw_data
-  }));
+  const messages: MessageType[] = data.messages.map((msg: MessageApiItem) => {
+    const { fullDateTime } = formatMessageDateTime(msg.created_at);
+    
+    return {
+      id: msg.message_id,
+      text: msg.text,
+      time: formatTime(msg.created_at),
+      isOwn: msg.author_role === 'Seller',
+      status: msg.is_read ? 'read' : 'sent',
+      timestamp: msg.created_at,
+      authorId: msg.author_id,
+      authorRole: msg.author_role,
+      isRead: msg.is_read,
+      isImage: msg.is_image,
+      context: msg.context ? {
+        sku: msg.context.sku || '',
+        orderNumber: msg.context.order_number || ''
+      } : undefined,
+      rawData: msg.raw_data,
+      displayTime: fullDateTime
+    };
+  });
+
+  // Сортируем сообщения по времени (от старых к новым)
+  const sortedMessages = messages.sort((a, b) => 
+    new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+  );
 
   const hasMore = request.direction === 'Backward' 
     ? messages.length > 0 && messages[0].id > (request.from_message_id || 0)
     : false;
 
   return {
-    messages: messages, // УБРАТЬ reverse() - сообщения должны идти от старых к новым
+    messages: sortedMessages,
     has_more: hasMore,
     total_messages: data.total_messages
   };
@@ -160,19 +167,34 @@ const formatTime = (timestamp: string): string => {
   });
 };
 
-const formatChatType = (chatType: string): string => {
-  const types: { [key: string]: string } = {
-    'BUYER_SELLER': 'Покупатель-Продавец',
-    'UNSPECIFIED': 'Не указан',
-    'SUPPORT': 'Поддержка',
-    'SELLER_SUPPORT': 'Поддержка продавца'
-  };
-  return types[chatType] || chatType;
-};
+// Функция для форматирования даты и времени в сообщениях
+const formatMessageDateTime = (timestamp: string): { fullDateTime: string } => {
+  if (!timestamp) return { fullDateTime: '' };
 
-const generateChatName = (chat: ChatApiItem): string => {
-  const marketplace = chat.marketplace;
-  const chatType = formatChatType(chat.chat_type);
-  
-  return `${marketplace} - ${chatType}`;
+  const date = new Date(timestamp);
+  const now = new Date();
+  const isToday = date.toDateString() === now.toDateString();
+  const isYesterday = new Date(now.setDate(now.getDate() - 1)).toDateString() === date.toDateString();
+
+  const time = date.toLocaleTimeString('ru-RU', {
+    hour: '2-digit',
+    minute: '2-digit'
+  });
+
+  let dateStr = '';
+  if (isToday) {
+    dateStr = 'Сегодня';
+  } else if (isYesterday) {
+    dateStr = 'Вчера';
+  } else {
+    dateStr = date.toLocaleDateString('ru-RU', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
+  }
+
+  return { 
+    fullDateTime: `${dateStr}, ${time}`
+  };
 };
