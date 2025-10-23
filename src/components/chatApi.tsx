@@ -65,6 +65,7 @@ export const getChatList = async (
 };
 
 // Получение истории сообщений
+// В функции getChatHistory исправьте порядок сообщений
 export const getChatHistory = async (
   token: string,
   request: ChatHistoryRequest
@@ -89,7 +90,7 @@ export const getChatHistory = async (
     id: msg.message_id,
     text: msg.text,
     time: formatTime(msg.created_at),
-    isOwn: msg.author_role === 'Seller', // Предполагаем, что Seller - это наш пользователь
+    isOwn: msg.author_role === 'Seller',
     status: msg.is_read ? 'read' : 'sent',
     timestamp: msg.created_at,
     authorId: msg.author_id,
@@ -108,7 +109,7 @@ export const getChatHistory = async (
     : false;
 
   return {
-    messages: request.direction === 'Backward' ? messages.reverse() : messages,
+    messages: messages, // УБРАТЬ reverse() - сообщения должны идти от старых к новым
     has_more: hasMore,
     total_messages: data.total_messages
   };

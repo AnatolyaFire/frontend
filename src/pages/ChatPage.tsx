@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react'; // Добавьте useRef
 import {
   Box,
   Drawer,
@@ -98,7 +98,7 @@ const ChatPage: React.FC = () => {
     }
   }, [filtersApplied]);
 
-  const ChatListItem = ({ chat, isSelected }: { chat: ChatUser; isSelected: boolean }) => {
+const ChatListItem = ({ chat, isSelected }: { chat: ChatUser; isSelected: boolean }) => {
     const isLoading = loadingChats[chat.id];
     
     return (
@@ -134,18 +134,18 @@ const ChatPage: React.FC = () => {
         <ListItemText
           primary={
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <Typography variant="subtitle1" noWrap>
+              <Typography variant="subtitle1" component="div" noWrap> {/* Добавьте component="div" */}
                 {chat.name}
                 {isLoading && ' (загрузка...)'}
               </Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography variant="caption" color="text.secondary" component="div"> {/* Добавьте component="div" */}
                 {chat.time}
               </Typography>
             </Box>
           }
           secondary={
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 0.5 }}>
-              <Typography variant="body2" color="text.secondary" noWrap sx={{ flex: 1 }}>
+              <Typography variant="body2" color="text.secondary" component="div" noWrap sx={{ flex: 1 }}> {/* Добавьте component="div" */}
                 {chat.lastMessage}
               </Typography>
               <Chip
@@ -185,19 +185,19 @@ const ChatPage: React.FC = () => {
           }}
         >
           {!isOwn && (
-            <Typography variant="caption" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}>
+            <Typography variant="caption" component="div" sx={{ opacity: 0.8, display: 'block', mb: 0.5 }}> {/* Добавьте component="div" */}
               {message.authorRole === 'Customer' ? 'Покупатель' : message.authorRole}
             </Typography>
           )}
-          <Typography variant="body1" sx={{ wordBreak: 'break-word' }}>
+          <Typography variant="body1" component="div" sx={{ wordBreak: 'break-word' }}> {/* Добавьте component="div" */}
             {message.text}
           </Typography>
           <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-            <Typography variant="caption" sx={{ opacity: 0.7 }}>
+            <Typography variant="caption" component="div" sx={{ opacity: 0.7 }}> {/* Добавьте component="div" */}
               {new Date(message.timestamp).toLocaleString('ru-RU')}
             </Typography>
             {isOwn && (
-              <Typography variant="caption" sx={{ opacity: 0.7, ml: 1 }}>
+              <Typography variant="caption" component="div" sx={{ opacity: 0.7, ml: 1 }}> {/* Добавьте component="div" */}
                 {message.status === 'sent' ? '✓' : message.status === 'delivered' ? '✓✓' : '✓✓'}
               </Typography>
             )}
@@ -206,6 +206,7 @@ const ChatPage: React.FC = () => {
       </Box>
     );
   };
+
 
   const FiltersPanel = () => (
     <Box sx={{ p: 2 }}>
@@ -301,83 +302,142 @@ const ChatPage: React.FC = () => {
     </>
   );
 
-  const ChatArea = () => {
-    const isLoading = selectedChat && loadingChats[selectedChat.id];
-    
-    return (
-      <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-        <AppBar position="static" color="default" elevation={1}>
-          <Toolbar>
-            {isMobile && (
-              <IconButton
-                edge="start"
-                onClick={handleDrawerToggle}
-                sx={{ mr: 2 }}
-              >
-                <MenuIcon />
-              </IconButton>
-            )}
-            <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
-              {selectedChat?.name.charAt(0)}
-            </Avatar>
-            <Typography variant="h6" sx={{ flex: 1 }}>
-              {selectedChat?.name}
-              {isLoading && ' (загрузка...)'}
-            </Typography>
-          </Toolbar>
-        </AppBar>
+const ChatArea = () => {
+  const isLoading = selectedChat && loadingChats[selectedChat.id];
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
 
-        <Box sx={{ flex: 1, overflow: 'auto', p: 2, position: 'relative' }}>
-          {isLoading ? (
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}>
-              <CircularProgress />
-            </Box>
-          ) : (
-            selectedChat?.messages.map((message) => (
-              <MessageBubble key={message.id} message={message} />
-            ))
-          )}
-          
-          {selectedChat && selectedChat.messages.length === 0 && !isLoading && (
-            <Box sx={{ textAlign: 'center', color: 'text.secondary', mt: 4 }}>
-              <Typography variant="body1">
-                Нет сообщений
-              </Typography>
-              <Typography variant="body2">
-                Начните общение первым
-              </Typography>
-            </Box>
-          )}
-        </Box>
-
-        <Box sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <TextField
-              fullWidth
-              multiline
-              maxRows={4}
-              value={messageText}
-              onChange={(e) => setMessageText(e.target.value)}
-              onKeyPress={handleKeyPress}
-              placeholder="Введите сообщение..."
-              variant="outlined"
-              size="small"
-              disabled={isLoading}
-            />
-            <IconButton
-              color="primary"
-              onClick={handleSendMessage}
-              disabled={!messageText.trim() || isLoading}
-            >
-              <SendIcon />
-            </IconButton>
-          </Box>
-        </Box>
-      </Box>
-    );
+  const scrollToBottom = () => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTop = messagesContainerRef.current.scrollHeight;
+    }
   };
 
-  const NoChatSelected = () => (
+  useEffect(() => {
+    if (!isLoading && selectedChat?.messages.length) {
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [selectedChat?.messages, isLoading]);
+
+  return (
+    <Box sx={{ 
+      display: 'flex', 
+      flexDirection: 'column', 
+      height: '100vh',
+      overflow: 'hidden'
+    }}>
+      {/* Header */}
+      <Box sx={{ 
+        flexShrink: 0,
+        borderBottom: 1,
+        borderColor: 'divider',
+        backgroundColor: 'background.paper'
+      }}>
+        <Toolbar>
+          {isMobile && (
+            <IconButton
+              edge="start"
+              onClick={handleDrawerToggle}
+              sx={{ mr: 2 }}
+            >
+              <MenuIcon />
+            </IconButton>
+          )}
+          <Avatar sx={{ bgcolor: 'primary.main', mr: 2 }}>
+            {selectedChat?.name.charAt(0)}
+          </Avatar>
+          <Typography variant="h6" component="div" sx={{ flex: 1 }}>
+            {selectedChat?.name}
+            {isLoading && ' (загрузка...)'}
+          </Typography>
+        </Toolbar>
+      </Box>
+
+      {/* Messages area - ЕДИНСТВЕННЫЙ скролл */}
+      <Box
+        ref={messagesContainerRef}
+        sx={{ 
+          flex: 1,
+          overflow: 'auto', // ТОЛЬКО здесь скролл
+          p: 2,
+          display: 'flex',
+          flexDirection: 'column'
+        }}
+      >
+        {isLoading ? (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            flex: 1 
+          }}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <>
+            {/* Сообщения */}
+            {selectedChat?.messages.map((message) => (
+              <MessageBubble key={message.id} message={message} />
+            ))}
+            {/* Пустой div для якоря прокрутки */}
+            <div ref={messagesEndRef} />
+          </>
+        )}
+        
+        {selectedChat && selectedChat.messages.length === 0 && !isLoading && (
+          <Box sx={{ 
+            textAlign: 'center', 
+            color: 'text.secondary',
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'center',
+            alignItems: 'center'
+          }}>
+            <Typography variant="body1" component="div">
+              Нет сообщений
+            </Typography>
+            <Typography variant="body2" component="div">
+              Начните общение первым
+            </Typography>
+          </Box>
+        )}
+      </Box>
+
+      {/* Input area - абсолютно фиксированная */}
+      <Box sx={{ 
+        flexShrink: 0,
+        p: 2, 
+        borderTop: 1, 
+        borderColor: 'divider',
+        backgroundColor: 'background.paper'
+      }}>
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <TextField
+            fullWidth
+            multiline
+            maxRows={4}
+            value={messageText}
+            onChange={(e) => setMessageText(e.target.value)}
+            onKeyPress={handleKeyPress}
+            placeholder="Введите сообщение..."
+            variant="outlined"
+            size="small"
+            disabled={isLoading}
+          />
+          <IconButton
+            color="primary"
+            onClick={handleSendMessage}
+            disabled={!messageText.trim() || isLoading}
+          >
+            <SendIcon />
+          </IconButton>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+   const NoChatSelected = () => (
     <Box
       sx={{
         display: 'flex',
@@ -389,10 +449,10 @@ const ChatPage: React.FC = () => {
         textAlign: 'center'
       }}
     >
-      <Typography variant="h5" gutterBottom>
+      <Typography variant="h5" component="div" gutterBottom> {/* Добавьте component="div" */}
         {!filtersApplied ? 'Выберите фильтры' : chats.length === 0 ? 'Чаты не найдены' : 'Выберите чат'}
       </Typography>
-      <Typography variant="body1" color="text.secondary">
+      <Typography variant="body1" component="div" color="text.secondary"> {/* Добавьте component="div" */}
         {!filtersApplied 
           ? 'Настройте фильтры слева и нажмите "Показать чаты"' 
           : chats.length === 0 

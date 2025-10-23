@@ -22,12 +22,21 @@ export const useChats = (token: string) => {
 
   const [filtersApplied, setFiltersApplied] = useState(false);
 
-  const sortChatsByDate = (chats: ChatUser[]): ChatUser[] => {
-    return [...chats].sort((a, b) => {
-      return new Date(b.time).getTime() - new Date(a.time).getTime();
-    });
-  };
-
+// В useChat.tsx улучшите функцию сортировки чатов
+const sortChatsByDate = (chats: ChatUser[]): ChatUser[] => {
+  return [...chats].sort((a, b) => {
+    // Сортируем по timestamp последнего сообщения, если есть сообщения
+    const aTime = a.messages.length > 0 
+      ? new Date(a.messages[a.messages.length - 1].timestamp).getTime()
+      : new Date(a.time).getTime();
+    
+    const bTime = b.messages.length > 0 
+      ? new Date(b.messages[b.messages.length - 1].timestamp).getTime()
+      : new Date(b.time).getTime();
+    
+    return bTime - aTime; // Сначала самые новые
+  });
+};
   const loadChats = useCallback(async (page: number = 1) => {
     if (!token || !filtersApplied) return;
 
@@ -74,45 +83,50 @@ export const useChats = (token: string) => {
     }
   }, [token, filters, filtersApplied, pagination.limit]);
 
-  const loadChatHistory = useCallback(async (
-    chatId: string, 
-    clientId: number
-  ) => {
-    if (!token) return;
+// В функции loadChatHistory исправьте порядок сообщений
+const loadChatHistory = useCallback(async (
+  chatId: string, 
+  clientId: number
+) => {
+  if (!token) return;
 
-    setLoadingChats(prev => ({ ...prev, [chatId]: true }));
+  setLoadingChats(prev => ({ ...prev, [chatId]: true }));
+  
+  try {
+    const request: ChatHistoryRequest = {
+      client_id: clientId,
+      chat_id: chatId,
+      direction: 'Backward',
+      limit: 50,
+      max_messages: 1000
+    };
+
+    const response = await getChatHistory(token, request);
     
-    try {
-      const request: ChatHistoryRequest = {
-        client_id: clientId,
-        chat_id: chatId,
-        direction: 'Backward',
-        limit: 50,
-        max_messages: 1000
-      };
-
-      const response = await getChatHistory(token, request);
-      
-      setChats(prevChats => 
-        prevChats.map(chat => 
-          chat.id === chatId 
-            ? { 
-                ...chat, 
-                messages: response.messages,
-                hasMoreMessages: response.has_more,
-                lastLoadedMessageId: response.messages.length > 0 
-                  ? response.messages[response.messages.length - 1].id 
-                  : chat.lastLoadedMessageId
-              }
-            : chat
-        )
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки истории');
-    } finally {
-      setLoadingChats(prev => ({ ...prev, [chatId]: false }));
-    }
-  }, [token]);
+    // Сообщения уже приходят в правильном порядке от API (самые старые -> самые новые)
+    // НЕ нужно их реверсить
+     const sortedMessages = response.messages; // Убрали .reverse()
+    
+    setChats(prevChats => 
+      prevChats.map(chat => 
+        chat.id === chatId 
+          ? { 
+              ...chat, 
+              messages: sortedMessages, // Используем уже отсортированные сообщения
+              hasMoreMessages: response.has_more,
+              lastLoadedMessageId: sortedMessages.length > 0 
+                ? sortedMessages[sortedMessages.length - 1].id 
+                : chat.lastLoadedMessageId
+            }
+          : chat
+      )
+    );
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Ошибка загрузки истории');
+  } finally {
+    setLoadingChats(prev => ({ ...prev, [chatId]: false }));
+  }
+}, [token]);
 
   const needsHistoryLoad = useCallback((chat: ChatUser): boolean => {
     return chat.messages.length === 0 && !loadingChats[chat.id];
