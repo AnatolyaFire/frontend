@@ -72,12 +72,23 @@ export const ChatListItem: React.FC<ChatListItemProps> = ({
             <Typography variant="body2" color="text.secondary" component="div" noWrap sx={{ flex: 1 }}>
               {chat.lastMessage}
             </Typography>
-            <Chip
-              label={chat.chatStatus}
-              size="small"
-              color={chat.chatStatus === 'OPENED' ? 'success' : 'default'}
-              sx={{ ml: 1, fontSize: '0.6rem', height: 20 }}
-            />
+            <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center' }}>
+              {/* Отображаем номер кабинета */}
+              <Chip
+                label={`Каб. ${chat.clientId}`}
+                size="small"
+                color="primary"
+                variant="outlined"
+                sx={{ fontSize: '0.6rem', height: 20 }}
+              />
+              {/* Статус чата */}
+              <Chip
+                label={chat.chatStatus}
+                size="small"
+                color={chat.chatStatus === 'OPENED' ? 'success' : 'default'}
+                sx={{ fontSize: '0.6rem', height: 20 }}
+              />
+            </Box>
           </Box>
         }
       />

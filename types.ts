@@ -56,7 +56,7 @@ export interface PaginationConfig {
 
 export interface ChatFilter {
   marketplace: string;
-  chat_status: string;
+  client_id: string; // Меняем chat_status на client_id
   is_read: string;
 }
 

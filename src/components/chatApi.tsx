@@ -19,7 +19,7 @@ export const getChatList = async (
   limit: number = 10,
   offset: number = 0,
   marketplace: string = ''
-): Promise<{ chats: ChatUser[]; total_count: number; total_unread: number; has_more: boolean }> => {
+): Promise<{ chats: ChatUser[]; total_count: number; total_unread: number}> => {
   
   let url = `${API_BASE_URL}/chats/chat-list?is_read=${is_read}&chat_status=${chat_status}&limit=${limit}&offset=${offset}`;
   
@@ -58,7 +58,7 @@ export const getChatList = async (
     chats,
     total_count: data.messages.length,
     total_unread: data.total_unread_messages,
-    has_more: data.messages.length === limit
+    // has_more: data.messages.length === limit
   };
 };
 

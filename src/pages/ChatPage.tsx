@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box,
   Drawer,
@@ -17,22 +17,17 @@ const ChatPage: React.FC = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const token = localStorage.getItem('access_token') || '';
 
-const {
-  chats,
-  loading,
-  loadingMore, // Добавляем
-  error,
-  pagination, // Теперь используем pagination.hasMore
-  filters,
-  filtersApplied,
-  loadingChats,
-  handleChatSelect,
-  sendChatMessage,
-  updateFilters,
-  applyFilters,
-  clearError,
-  loadMoreChats // Добавляем
-} = useChats(token);
+  const {
+    chats,
+    loading,
+    filters,
+    filtersApplied,
+    loadingChats,
+    handleChatSelect,
+    sendChatMessage,
+    updateFilters,
+    applyFilters,
+  } = useChats(token);
 
   const handleDrawerToggle = () => {
     setMobileOpen(!mobileOpen);
@@ -59,40 +54,48 @@ const {
   };
 
   const drawer = (
-    <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       <ChatList
         chats={chats}
         selectedChat={selectedChat}
         loading={loading}
-        loadingMore={loadingMore}
         loadingChats={loadingChats}
         filters={filters}
-        pagination={pagination}
         onChatClick={handleChatClick}
         onUpdateFilters={updateFilters}
         onApplyFilters={handleApplyFilters}
-        onLoadMore={loadMoreChats} // Передаем функцию
       />
     </Box>
   );
 
   return (
-    <Box sx={{ display: 'flex', height: '100vh', overflow: 'hidden' }}>
+    <Box sx={{ 
+      display: 'flex', 
+      height: '100vh', 
+      width: '100vw',
+      overflow: 'hidden'
+    }}>
       {/* Боковая панель с чатами */}
       <Box
         component="nav"
-        sx={{ width: { md: 380 }, flexShrink: { md: 0 } }}
+        sx={{ 
+          width: { md: 380 }, 
+          flexShrink: 0,
+          height: '100vh'
+        }}
       >
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={handleDrawerToggle}
-          ModalProps={{ keepMounted: true }}
+          ModalProps={{ 
+            keepMounted: true,
+          }}
           sx={{
             display: { xs: 'block', md: 'none' },
             '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
               width: 380,
+              height: '100vh',
               overflow: 'hidden'
             },
           }}
@@ -104,9 +107,9 @@ const {
           sx={{
             display: { xs: 'none', md: 'block' },
             '& .MuiDrawer-paper': { 
-              boxSizing: 'border-box', 
               width: 380,
-              position: 'relative',
+              height: '100vh',
+              position: 'fixed',
               overflow: 'hidden'
             },
           }}
@@ -121,7 +124,8 @@ const {
         flex: 1, 
         display: 'flex', 
         flexDirection: 'column',
-        overflow: 'hidden'
+        overflow: 'hidden',
+        minWidth: 0
       }}>
         <ChatWindow
           selectedChat={selectedChat}

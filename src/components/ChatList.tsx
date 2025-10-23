@@ -19,48 +19,43 @@ interface ChatListProps {
   chats: ChatUser[];
   selectedChat: ChatUser | null;
   loading: boolean;
-  loadingMore: boolean; // Добавляем проп
   loadingChats: { [chatId: string]: boolean };
   filters: ChatFilter;
-  pagination: {
-    hasMore: boolean;
-    total: number;
-  };
   onChatClick: (chat: ChatUser) => void;
   onUpdateFilters: (filters: Partial<ChatFilter>) => void;
   onApplyFilters: () => void;
-  onLoadMore: () => void; // Добавляем проп для загрузки еще
 }
 
 export const ChatList: React.FC<ChatListProps> = ({
   chats,
   selectedChat,
   loading,
-  loadingMore,
   loadingChats,
   filters,
-  pagination,
   onChatClick,
   onUpdateFilters,
   onApplyFilters,
-  onLoadMore,
 }) => {
   return (
     <Box sx={{ 
-      display: 'flex', 
-      flexDirection: 'column', 
-      height: '100%',
-      overflow: 'hidden'
+      height: '100vh',
+      display: 'flex',
+      flexDirection: 'column'
     }}>
-      {/* Панель фильтров */}
-      <Box sx={{ p: 2, flexShrink: 0 }}>
-
+      {/* Фиксированная верхняя часть с фильтрами */}
+      <Box sx={{ 
+        p: 2, 
+        flexShrink: 0,
+        borderBottom: 1,
+        borderColor: 'divider'
+      }}>
+        <Typography variant="h6" gutterBottom>Фильтры чатов</Typography>
         
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel>Маркетплейс</InputLabel>
-          <Select
-            value={filters.marketplace}
-            label="Маркетплейс"
+          <Select 
+            value={filters.marketplace} 
+            label="Маркетплейс" 
             onChange={(e) => onUpdateFilters({ marketplace: e.target.value })}
           >
             <MenuItem value="all">Все</MenuItem>
@@ -69,24 +64,29 @@ export const ChatList: React.FC<ChatListProps> = ({
           </Select>
         </FormControl>
 
+        {/* Заменяем фильтр статуса чата на фильтр по номеру кабинета */}
         <FormControl fullWidth sx={{ mb: 2 }}>
-          <InputLabel>Статус чата</InputLabel>
-          <Select
-            value={filters.chat_status}
-            label="Статус чата"
-            onChange={(e) => onUpdateFilters({ chat_status: e.target.value })}
+          <InputLabel>Номер кабинета</InputLabel>
+          <Select 
+            value={filters.client_id} 
+            label="Номер кабинета" 
+            onChange={(e) => onUpdateFilters({ client_id: e.target.value })}
           >
-            <MenuItem value="All">Все</MenuItem>
-            <MenuItem value="Opened">Открытые</MenuItem>
-            <MenuItem value="Closed">Закрытые</MenuItem>
+            <MenuItem value="all">Все кабинеты</MenuItem>
+            <MenuItem value="1">Кабинет 1</MenuItem>
+            <MenuItem value="2">Кабинет 2</MenuItem>
+            <MenuItem value="3">Кабинет 3</MenuItem>
+            <MenuItem value="4">Кабинет 4</MenuItem>
+            <MenuItem value="5">Кабинет 5</MenuItem>
+            {/* Добавьте больше кабинетов по необходимости */}
           </Select>
         </FormControl>
 
         <FormControl fullWidth sx={{ mb: 2 }}>
           <InputLabel>Сообщения</InputLabel>
-          <Select
-            value={filters.is_read}
-            label="Сообщения"
+          <Select 
+            value={filters.is_read} 
+            label="Сообщения" 
             onChange={(e) => onUpdateFilters({ is_read: e.target.value })}
           >
             <MenuItem value="all">Все</MenuItem>
@@ -106,58 +106,45 @@ export const ChatList: React.FC<ChatListProps> = ({
 
         {chats.length > 0 && (
           <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
-            Загружено: {chats.length} чатов
+            Найдено: {chats.length} чатов
           </Typography>
         )}
       </Box>
 
       <Divider />
 
-      {/* Список чатов */}
+      {/* Скроллящаяся часть со списком чатов */}
       <Box sx={{ 
-        flex: 1, 
+        flex: 1,
         overflow: 'auto',
-        minHeight: 0,
-        display: 'flex',
-        flexDirection: 'column'
+        minHeight: 0
       }}>
         {chats.length === 0 && !loading ? (
-          <Box sx={{ p: 3, textAlign: 'center' }}>
+          <Box sx={{ 
+            p: 3, 
+            textAlign: 'center',
+            height: '100%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}>
             <Typography color="text.secondary">
               {filters.is_read === 'unread' ? 'Нет непрочитанных чатов' : 'Чаты не найдены'}
             </Typography>
           </Box>
         ) : (
-          <>
-            <List sx={{ p: 0, flex: 1 }}>
-              {chats.map((chat) => (
-                <ChatListItem
-                  key={chat.id}
-                  chat={chat}
-                  isSelected={selectedChat?.id === chat.id}
-                  isLoading={loadingChats[chat.id]}
-                  onChatClick={onChatClick}
-                />
-              ))}
-            </List>
-
-            {/* Кнопка "Загрузить еще" */}
-            {pagination.hasMore && (
-              <Box sx={{ p: 2, flexShrink: 0, borderTop: 1, borderColor: 'divider' }}>
-                <Button
-                  variant="outlined"
-                  fullWidth
-                  onClick={onLoadMore}
-                  disabled={loadingMore}
-                  startIcon={loadingMore ? <CircularProgress size={16} /> : null}
-                >
-                  {loadingMore ? 'Загрузка...' : 'Загрузить еще'}
-                </Button>
-              </Box>
-            )}
-          </>
+          <List sx={{ p: 0 }}>
+            {chats.map((chat) => (
+              <ChatListItem
+                key={chat.id}
+                chat={chat}
+                isSelected={selectedChat?.id === chat.id}
+                isLoading={loadingChats[chat.id]}
+                onChatClick={onChatClick}
+              />
+            ))}
+          </List>
         )}
-        
         {loading && (
           <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
             <CircularProgress />

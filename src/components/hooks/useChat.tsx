@@ -1,26 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
-import { ChatUser, ChatFilter, PaginationConfig, ChatHistoryRequest, MessageType } from '../../../types';
+import { ChatUser, ChatFilter, ChatHistoryRequest, MessageType } from '../../../types';
 import { getChatList, getChatHistory, sendMessage } from '../chatApi';
 
 export const useChats = (token: string) => {
   const [chats, setChats] = useState<ChatUser[]>([]);
   const [loading, setLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingChats, setLoadingChats] = useState<{ [chatId: string]: boolean }>({});
-  
-  const [pagination, setPagination] = useState<PaginationConfig>({
-    page: 1,
-    limit: 10,
-    total: 0,
-    hasMore: false
-  });
 
-  const [filters, setFilters] = useState<ChatFilter>({
-    marketplace: 'all',
-    chat_status: 'All',
-    is_read: 'unread'
-  });
+const [filters, setFilters] = useState<ChatFilter>({
+  marketplace: 'all',
+  client_id: 'all', // Меняем на 'all'
+  is_read: 'unread'
+});
 
   const [filtersApplied, setFiltersApplied] = useState(false);
 
@@ -38,111 +30,60 @@ export const useChats = (token: string) => {
     });
   };
 
-  const loadChats = useCallback(async (page: number = 1) => {
-    if (!token || !filtersApplied) return;
+  const loadChats = useCallback(async () => {
+  if (!token || !filtersApplied) return;
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      const offset = (page - 1) * pagination.limit;
-      
-      const apiFilters = {
-        is_read: filters.is_read === 'unread' ? 'unread' : 'all',
-        chat_status: filters.chat_status,
-        marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
-      };
+  try {
+    const apiFilters = {
+      is_read: filters.is_read === 'unread' ? 'unread' : 'all',
+      chat_status: 'All', // Оставляем 'All' для API, так как фильтруем на клиенте
+      marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
+    };
 
-      const response = await getChatList(
-        token, 
-        apiFilters.is_read, 
-        apiFilters.chat_status, 
-        pagination.limit, 
-        offset,
-        apiFilters.marketplace
+    // Загружаем 30 чатов за раз
+    const response = await getChatList(
+      token, 
+      apiFilters.is_read, 
+      apiFilters.chat_status, 
+      30,
+      0,
+      apiFilters.marketplace
+    );
+    
+    let filteredChats = response.chats;
+    
+    // Фильтруем по маркетплейсу
+    if (filters.marketplace !== 'all') {
+      filteredChats = filteredChats.filter(chat => 
+        chat.marketplace === filters.marketplace
       );
-      
-      let filteredChats = response.chats;
-      if (filters.marketplace !== 'all') {
-        filteredChats = response.chats.filter(chat => 
-          chat.marketplace === filters.marketplace
-        );
-      }
-      
-      const chatsWithEmptyMessages = filteredChats.map(chat => ({
-        ...chat,
-        messages: []
-      }));
-      
-      const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
-      
-      setChats(sortedChats);
-      setPagination(prev => ({
-        ...prev,
-        page,
-        total: response.total_count,
-        hasMore: response.has_more
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов');
-    } finally {
-      setLoading(false);
     }
-  }, [token, filters, filtersApplied, pagination.limit]);
-
-  const loadMoreChats = useCallback(async () => {
-    if (!token || !filtersApplied || !pagination.hasMore || loadingMore) return;
-
-    setLoadingMore(true);
-    setError(null);
-
-    try {
-      const nextPage = pagination.page + 1;
-      const offset = (nextPage - 1) * pagination.limit;
-      
-      const apiFilters = {
-        is_read: filters.is_read === 'unread' ? 'unread' : 'all',
-        chat_status: filters.chat_status,
-        marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
-      };
-
-      const response = await getChatList(
-        token, 
-        apiFilters.is_read, 
-        apiFilters.chat_status, 
-        pagination.limit, 
-        offset,
-        apiFilters.marketplace
+    
+    // Фильтруем по client_id (номеру кабинета)
+    if (filters.client_id !== 'all') {
+      const clientId = parseInt(filters.client_id);
+      filteredChats = filteredChats.filter(chat => 
+        chat.clientId === clientId
       );
-      
-      let filteredChats = response.chats;
-      if (filters.marketplace !== 'all') {
-        filteredChats = response.chats.filter(chat => 
-          chat.marketplace === filters.marketplace
-        );
-      }
-      
-      const newChatsWithEmptyMessages = filteredChats.map(chat => ({
-        ...chat,
-        messages: []
-      }));
-      
-      const sortedNewChats = sortChatsByDate(newChatsWithEmptyMessages);
-      const allChats = [...chats, ...sortedNewChats];
-      
-      setChats(allChats);
-      setPagination(prev => ({
-        ...prev,
-        page: nextPage,
-        total: prev.total + response.total_count,
-        hasMore: response.has_more
-      }));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов');
-    } finally {
-      setLoadingMore(false);
     }
-  }, [token, filters, filtersApplied, pagination, chats, loadingMore]);
+    
+    const chatsWithEmptyMessages = filteredChats.map(chat => ({
+      ...chat,
+      messages: []
+    }));
+    
+    const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
+    
+    setChats(sortedChats);
+  } catch (err) {
+    setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов');
+  } finally {
+    setLoading(false);
+  }
+}, [token, filters, filtersApplied]);
 
   const loadChatHistory = useCallback(async (
     chatId: string, 
@@ -270,18 +211,12 @@ export const useChats = (token: string) => {
   const updateFilters = useCallback((newFilters: Partial<ChatFilter>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
     setFiltersApplied(false);
-    setPagination(prev => ({ ...prev, page: 1, hasMore: false }));
     setChats([]);
   }, []);
 
   const applyFilters = useCallback(() => {
     setFiltersApplied(true);
-    setPagination(prev => ({ ...prev, page: 1, hasMore: false }));
     setChats([]);
-  }, []);
-
-  const updatePagination = useCallback((newPagination: Partial<PaginationConfig>) => {
-    setPagination(prev => ({ ...prev, ...newPagination }));
   }, []);
 
   const clearError = useCallback(() => {
@@ -290,27 +225,23 @@ export const useChats = (token: string) => {
 
   useEffect(() => {
     if (filtersApplied) {
-      loadChats(pagination.page);
+      loadChats();
     }
-  }, [loadChats, pagination.page, filtersApplied]);
+  }, [loadChats, filtersApplied]);
 
   return {
     chats,
     loading,
-    loadingMore,
     error,
-    pagination,
     filters,
     filtersApplied,
     loadingChats,
     loadChats,
-    loadMoreChats,
     loadChatHistory,
     handleChatSelect,
     sendChatMessage,
     clearChatMessages,
     updateFilters,
-    updatePagination,
     applyFilters,
     clearError,
     needsHistoryLoad
