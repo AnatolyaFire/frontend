@@ -1,7 +1,7 @@
+// Альтернативный ChatPage.tsx
 import React, { useState } from 'react';
 import {
   Box,
-  Drawer,
   useTheme,
   useMediaQuery,
 } from '@mui/material';
@@ -10,33 +10,28 @@ import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 
 const ChatPage: React.FC = () => {
-  const [mobileOpen, setMobileOpen] = useState(false);
+  const [currentView, setCurrentView] = useState<'chats' | 'chat'>('chats');
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const token = localStorage.getItem('access_token') || '';
 
   const {
     chats,
-    selectedChat, // Получаем selectedChat из хука
+    selectedChat,
     loading,
     filters,
     filtersApplied,
     loadingChats,
-    handleChatSelect, // Теперь эта функция сама управляет selectedChat
+    handleChatSelect,
     sendChatMessage,
     updateFilters,
     applyFilters,
   } = useChats(token);
 
-  const handleDrawerToggle = () => {
-    setMobileOpen(!mobileOpen);
-  };
-
   const handleChatClick = async (chat: any) => {
-    // Просто вызываем handleChatSelect из хука
     await handleChatSelect(chat);
     if (isMobile) {
-      setMobileOpen(false);
+      setCurrentView('chat');
     }
   };
 
@@ -45,28 +40,46 @@ const ChatPage: React.FC = () => {
     await sendChatMessage(selectedChat.id, selectedChat.clientId, text);
   };
 
-  const handleApplyFilters = () => {
-    applyFilters();
-    if (isMobile) {
-      setMobileOpen(false);
-    }
+  const handleBackToChats = () => {
+    setCurrentView('chats');
   };
 
-  const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <ChatList
-        chats={chats}
-        selectedChat={selectedChat}
-        loading={loading}
-        loadingChats={loadingChats}
-        filters={filters}
-        onChatClick={handleChatClick}
-        onUpdateFilters={updateFilters}
-        onApplyFilters={handleApplyFilters}
-      />
-    </Box>
-  );
+  const handleApplyFilters = () => {
+    applyFilters();
+  };
 
+  // В мобильной версии показываем либо список чатов, либо окно чата
+  if (isMobile) {
+    return (
+      <Box sx={{ height: '100vh', overflow: 'hidden' }}>
+        {currentView === 'chats' ? (
+          <ChatList
+            chats={chats}
+            selectedChat={selectedChat}
+            loading={loading}
+            loadingChats={loadingChats}
+            filters={filters}
+            onChatClick={handleChatClick}
+            onUpdateFilters={updateFilters}
+            onApplyFilters={handleApplyFilters}
+            isMobile={true}
+          />
+        ) : (
+          <ChatWindow
+            selectedChat={selectedChat}
+            loadingChats={loadingChats}
+            onSendMessage={handleSendMessage}
+            onMenuToggle={handleBackToChats}
+            isMobile={true}
+            filtersApplied={filtersApplied}
+            chats={chats}
+          />
+        )}
+      </Box>
+    );
+  }
+
+  // Десктопная версия
   return (
     <Box sx={{ 
       display: 'flex', 
@@ -75,63 +88,38 @@ const ChatPage: React.FC = () => {
       overflow: 'hidden'
     }}>
       {/* Боковая панель с чатами */}
-      <Box
-        component="nav"
-        sx={{ 
-          width: { md: 380 }, 
-          flexShrink: 0,
-          height: '100vh'
-        }}
-      >
-        <Drawer
-          variant="temporary"
-          open={mobileOpen}
-          onClose={handleDrawerToggle}
-          ModalProps={{ 
-            keepMounted: true,
-          }}
-          sx={{
-            display: { xs: 'block', md: 'none' },
-            '& .MuiDrawer-paper': { 
-              width: 380,
-              height: '100vh',
-              overflow: 'hidden'
-            },
-          }}
-        >
-          {drawer}
-        </Drawer>
-        <Drawer
-          variant="permanent"
-          sx={{
-            display: { xs: 'none', md: 'block' },
-            '& .MuiDrawer-paper': { 
-              width: 380,
-              height: '100vh',
-              position: 'fixed',
-              overflow: 'hidden'
-            },
-          }}
-          open
-        >
-          {drawer}
-        </Drawer>
+      <Box sx={{ 
+        width: 380,
+        flexShrink: 0,
+        height: '100vh',
+        borderRight: 1,
+        borderColor: 'divider'
+      }}>
+        <ChatList
+          chats={chats}
+          selectedChat={selectedChat}
+          loading={loading}
+          loadingChats={loadingChats}
+          filters={filters}
+          onChatClick={handleChatClick}
+          onUpdateFilters={updateFilters}
+          onApplyFilters={handleApplyFilters}
+          isMobile={false}
+        />
       </Box>
 
       {/* Основная область с чатом */}
-      <Box component="main" sx={{ 
+      <Box sx={{ 
         flex: 1, 
         display: 'flex', 
         flexDirection: 'column',
-        overflow: 'hidden',
-        minWidth: 0
+        overflow: 'hidden'
       }}>
         <ChatWindow
           selectedChat={selectedChat}
           loadingChats={loadingChats}
           onSendMessage={handleSendMessage}
-          onMenuToggle={handleDrawerToggle}
-          isMobile={isMobile}
+          isMobile={false}
           filtersApplied={filtersApplied}
           chats={chats}
         />
