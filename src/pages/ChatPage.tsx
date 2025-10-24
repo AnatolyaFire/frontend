@@ -6,12 +6,10 @@ import {
   useMediaQuery,
 } from '@mui/material';
 import { useChats } from '../components/hooks/useChat';
-import { ChatUser } from '../../types';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
 
 const ChatPage: React.FC = () => {
-  const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
@@ -19,11 +17,12 @@ const ChatPage: React.FC = () => {
 
   const {
     chats,
+    selectedChat, // Получаем selectedChat из хука
     loading,
     filters,
     filtersApplied,
     loadingChats,
-    handleChatSelect,
+    handleChatSelect, // Теперь эта функция сама управляет selectedChat
     sendChatMessage,
     updateFilters,
     applyFilters,
@@ -33,8 +32,8 @@ const ChatPage: React.FC = () => {
     setMobileOpen(!mobileOpen);
   };
 
-  const handleChatClick = async (chat: ChatUser) => {
-    setSelectedChat(chat);
+  const handleChatClick = async (chat: any) => {
+    // Просто вызываем handleChatSelect из хука
     await handleChatSelect(chat);
     if (isMobile) {
       setMobileOpen(false);

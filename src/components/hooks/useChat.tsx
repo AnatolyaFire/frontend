@@ -4,15 +4,16 @@ import { getChatList, getChatHistory, sendMessage } from '../chatApi';
 
 export const useChats = (token: string) => {
   const [chats, setChats] = useState<ChatUser[]>([]);
+  const [selectedChat, setSelectedChat] = useState<ChatUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadingChats, setLoadingChats] = useState<{ [chatId: string]: boolean }>({});
 
-const [filters, setFilters] = useState<ChatFilter>({
-  marketplace: 'all',
-  client_id: 'all', // Меняем на 'all'
-  is_read: 'unread'
-});
+  const [filters, setFilters] = useState<ChatFilter>({
+    marketplace: 'all',
+    client_id: 'all',
+    is_read: 'unread'
+  });
 
   const [filtersApplied, setFiltersApplied] = useState(false);
 
@@ -31,59 +32,56 @@ const [filters, setFilters] = useState<ChatFilter>({
   };
 
   const loadChats = useCallback(async () => {
-  if (!token || !filtersApplied) return;
+    if (!token || !filtersApplied) return;
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
-    const apiFilters = {
-      is_read: filters.is_read === 'unread' ? 'unread' : 'all',
-      chat_status: 'All', // Оставляем 'All' для API, так как фильтруем на клиенте
-      marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
-    };
+    try {
+      const apiFilters = {
+        is_read: filters.is_read === 'unread' ? 'unread' : 'all',
+        chat_status: 'All',
+        marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
+      };
 
-    // Загружаем 30 чатов за раз
-    const response = await getChatList(
-      token, 
-      apiFilters.is_read, 
-      apiFilters.chat_status, 
-      30,
-      0,
-      apiFilters.marketplace
-    );
-    
-    let filteredChats = response.chats;
-    
-    // Фильтруем по маркетплейсу
-    if (filters.marketplace !== 'all') {
-      filteredChats = filteredChats.filter(chat => 
-        chat.marketplace === filters.marketplace
+      const response = await getChatList(
+        token, 
+        apiFilters.is_read, 
+        apiFilters.chat_status, 
+        30,
+        0,
+        apiFilters.marketplace
       );
+      
+      let filteredChats = response.chats;
+      
+      if (filters.marketplace !== 'all') {
+        filteredChats = filteredChats.filter(chat => 
+          chat.marketplace === filters.marketplace
+        );
+      }
+      
+      if (filters.client_id !== 'all') {
+        const clientId = parseInt(filters.client_id);
+        filteredChats = filteredChats.filter(chat => 
+          chat.clientId === clientId
+        );
+      }
+      
+      const chatsWithEmptyMessages = filteredChats.map(chat => ({
+        ...chat,
+        messages: [] // Всегда начинаем с пустого массива сообщений
+      }));
+      
+      const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
+      
+      setChats(sortedChats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов');
+    } finally {
+      setLoading(false);
     }
-    
-    // Фильтруем по client_id (номеру кабинета)
-    if (filters.client_id !== 'all') {
-      const clientId = parseInt(filters.client_id);
-      filteredChats = filteredChats.filter(chat => 
-        chat.clientId === clientId
-      );
-    }
-    
-    const chatsWithEmptyMessages = filteredChats.map(chat => ({
-      ...chat,
-      messages: []
-    }));
-    
-    const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
-    
-    setChats(sortedChats);
-  } catch (err) {
-    setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов');
-  } finally {
-    setLoading(false);
-  }
-}, [token, filters, filtersApplied]);
+  }, [token, filters, filtersApplied]);
 
   const loadChatHistory = useCallback(async (
     chatId: string, 
@@ -106,6 +104,7 @@ const [filters, setFilters] = useState<ChatFilter>({
       
       const sortedMessages = sortMessagesByTime(response.messages);
       
+      // Обновляем чаты с новыми сообщениями
       setChats(prevChats => 
         prevChats.map(chat => 
           chat.id === chatId 
@@ -120,6 +119,19 @@ const [filters, setFilters] = useState<ChatFilter>({
             : chat
         )
       );
+
+      // Обновляем selectedChat с актуальными сообщениями
+      setSelectedChat(prevSelected => {
+        if (prevSelected && prevSelected.id === chatId) {
+          return {
+            ...prevSelected,
+            messages: sortedMessages,
+            hasMoreMessages: response.has_more
+          };
+        }
+        return prevSelected;
+      });
+      
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Ошибка загрузки истории');
     } finally {
@@ -127,16 +139,34 @@ const [filters, setFilters] = useState<ChatFilter>({
     }
   }, [token]);
 
-  const needsHistoryLoad = useCallback((chat: ChatUser): boolean => {
-    return chat.messages.length === 0 && !loadingChats[chat.id];
-  }, [loadingChats]);
-
   const handleChatSelect = useCallback(async (chat: ChatUser) => {
-    if (needsHistoryLoad(chat)) {
+    // Очищаем сообщения предыдущего выбранного чата
+    if (selectedChat && selectedChat.id !== chat.id) {
+      setSelectedChat(prevSelected => {
+        if (prevSelected) {
+          return { ...prevSelected, messages: [] };
+        }
+        return prevSelected;
+      });
+
+      // Также очищаем сообщения в основном массиве чатов для предыдущего чата
+      setChats(prevChats => 
+        prevChats.map(prevChat => 
+          prevChat.id === selectedChat.id 
+            ? { ...prevChat, messages: [] }
+            : prevChat
+        )
+      );
+    }
+
+    // Сначала устанавливаем выбранный чат (с пустыми сообщениями)
+    setSelectedChat({ ...chat, messages: [] });
+    
+    // Загружаем историю для нового чата
+    if (!loadingChats[chat.id]) {
       await loadChatHistory(chat.id, chat.clientId);
     }
-    return true;
-  }, [loadChatHistory, needsHistoryLoad]);
+  }, [selectedChat, loadChatHistory, loadingChats]);
 
   const sendChatMessage = useCallback(async (
     chatId: string,
@@ -174,6 +204,7 @@ const [filters, setFilters] = useState<ChatFilter>({
           displayTime: fullDateTime
         };
 
+        // Обновляем сообщения во всех чатах
         setChats(prevChats => 
           prevChats.map(chat => 
             chat.id === chatId 
@@ -187,6 +218,21 @@ const [filters, setFilters] = useState<ChatFilter>({
               : chat
           )
         );
+
+        // Обновляем selectedChat
+        setSelectedChat(prevSelected => {
+          if (prevSelected && prevSelected.id === chatId) {
+            const updatedMessages = sortMessagesByTime([...prevSelected.messages, newMessage]);
+            return {
+              ...prevSelected,
+              messages: updatedMessages,
+              lastMessage: text.length > 50 ? text.substring(0, 50) + '...' : text,
+              time: 'Только что',
+              unreadCount: 0
+            };
+          }
+          return prevSelected;
+        });
 
         return { success: true };
       }
@@ -206,17 +252,26 @@ const [filters, setFilters] = useState<ChatFilter>({
           : chat
       )
     );
+    
+    setSelectedChat(prevSelected => {
+      if (prevSelected && prevSelected.id === chatId) {
+        return { ...prevSelected, messages: [] };
+      }
+      return prevSelected;
+    });
   }, []);
 
   const updateFilters = useCallback((newFilters: Partial<ChatFilter>) => {
     setFilters(prev => ({ ...prev, ...newFilters }));
     setFiltersApplied(false);
     setChats([]);
+    setSelectedChat(null);
   }, []);
 
   const applyFilters = useCallback(() => {
     setFiltersApplied(true);
     setChats([]);
+    setSelectedChat(null);
   }, []);
 
   const clearError = useCallback(() => {
@@ -231,6 +286,7 @@ const [filters, setFilters] = useState<ChatFilter>({
 
   return {
     chats,
+    selectedChat,
     loading,
     error,
     filters,
@@ -244,7 +300,6 @@ const [filters, setFilters] = useState<ChatFilter>({
     updateFilters,
     applyFilters,
     clearError,
-    needsHistoryLoad
   };
 };
 
