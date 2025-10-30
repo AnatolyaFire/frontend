@@ -8,6 +8,7 @@ import {
 import { useChats } from '../components/hooks/useChat';
 import { ChatList } from '../components/ChatList';
 import { ChatWindow } from '../components/ChatWindow';
+import NavBar from '../components/navBar';
 
 const ChatPage: React.FC = () => {
   const [currentView, setCurrentView] = useState<'chats' | 'chat'>('chats');
@@ -51,8 +52,54 @@ const ChatPage: React.FC = () => {
   // В мобильной версии показываем либо список чатов, либо окно чата
   if (isMobile) {
     return (
-      <Box sx={{ height: '100vh', overflow: 'hidden' }}>
-        {currentView === 'chats' ? (
+      <>
+        <NavBar />
+        <Box sx={{ height: '100vh', overflow: 'hidden' }}>
+          {currentView === 'chats' ? (
+            <ChatList
+              chats={chats}
+              selectedChat={selectedChat}
+              loading={loading}
+              loadingChats={loadingChats}
+              filters={filters}
+              onChatClick={handleChatClick}
+              onUpdateFilters={updateFilters}
+              onApplyFilters={handleApplyFilters}
+              isMobile={true}
+            />
+          ) : (
+            <ChatWindow
+              selectedChat={selectedChat}
+              loadingChats={loadingChats}
+              onSendMessage={handleSendMessage}
+              onMenuToggle={handleBackToChats}
+              isMobile={true}
+              filtersApplied={filtersApplied}
+              chats={chats}
+            />
+          )}
+        </Box></>
+    );
+  }
+
+  // Десктопная версия
+  return (
+
+    <> <NavBar />
+      <Box sx={{
+        display: 'flex',
+        height: '100vh',
+        width: '100vw',
+        overflow: 'hidden'
+      }}>
+        {/* Боковая панель с чатами */}
+        <Box sx={{
+          width: 380,
+          flexShrink: 0,
+          height: '100vh',
+          borderRight: 1,
+          borderColor: 'divider'
+        }}>
           <ChatList
             chats={chats}
             selectedChat={selectedChat}
@@ -62,69 +109,27 @@ const ChatPage: React.FC = () => {
             onChatClick={handleChatClick}
             onUpdateFilters={updateFilters}
             onApplyFilters={handleApplyFilters}
-            isMobile={true}
+            isMobile={false}
           />
-        ) : (
+        </Box>
+
+        {/* Основная область с чатом */}
+        <Box sx={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          overflow: 'hidden'
+        }}>
           <ChatWindow
             selectedChat={selectedChat}
             loadingChats={loadingChats}
             onSendMessage={handleSendMessage}
-            onMenuToggle={handleBackToChats}
-            isMobile={true}
+            isMobile={false}
             filtersApplied={filtersApplied}
             chats={chats}
           />
-        )}
-      </Box>
-    );
-  }
-
-  // Десктопная версия
-  return (
-    <Box sx={{ 
-      display: 'flex', 
-      height: '100vh', 
-      width: '100vw',
-      overflow: 'hidden'
-    }}>
-      {/* Боковая панель с чатами */}
-      <Box sx={{ 
-        width: 380,
-        flexShrink: 0,
-        height: '100vh',
-        borderRight: 1,
-        borderColor: 'divider'
-      }}>
-        <ChatList
-          chats={chats}
-          selectedChat={selectedChat}
-          loading={loading}
-          loadingChats={loadingChats}
-          filters={filters}
-          onChatClick={handleChatClick}
-          onUpdateFilters={updateFilters}
-          onApplyFilters={handleApplyFilters}
-          isMobile={false}
-        />
-      </Box>
-
-      {/* Основная область с чатом */}
-      <Box sx={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column',
-        overflow: 'hidden'
-      }}>
-        <ChatWindow
-          selectedChat={selectedChat}
-          loadingChats={loadingChats}
-          onSendMessage={handleSendMessage}
-          isMobile={false}
-          filtersApplied={filtersApplied}
-          chats={chats}
-        />
-      </Box>
-    </Box>
+        </Box>
+      </Box></>
   );
 };
 

@@ -9,7 +9,7 @@ import {
   MessageApiItem
 } from '../../types';
 
-const API_BASE_URL = 'http://45.144.178.5/api';
+const API_BASE_URL = 'http://127.0.0.1:8000/api';
 
 // Получение списка чатов
 export const getChatList = async (
