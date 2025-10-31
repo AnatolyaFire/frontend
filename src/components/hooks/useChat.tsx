@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ChatUser, ChatFilter, ChatHistoryRequest, MessageType } from '../../../types';
-import { getChatList, getChatHistory, sendMessage } from '../chatApi';
+import { getChatList, getChatHistory, sendMessage, getWBChats, getWBChatHistory, getAllChats } from '../chatApi';
 
 export const useChats = (token: string) => {
   const [chats, setChats] = useState<ChatUser[]>([]);
@@ -44,23 +44,41 @@ export const useChats = (token: string) => {
         marketplace: filters.marketplace === 'all' ? '' : filters.marketplace
       };
 
-      const response = await getChatList(
-        token, 
-        apiFilters.is_read, 
-        apiFilters.chat_status, 
-        30,
-        0,
-        apiFilters.marketplace
-      );
-      
-      let filteredChats = response.chats;
-      
-      if (filters.marketplace !== 'all') {
-        filteredChats = filteredChats.filter(chat => 
-          chat.marketplace === filters.marketplace
+      let response;
+
+      // Выбираем метод в зависимости от фильтра маркетплейса
+      if (filters.marketplace === 'all') {
+        // Загружаем все чаты с обоих маркетплейсов
+        response = await getAllChats(
+          token, 
+          apiFilters.is_read, 
+          apiFilters.chat_status, 
+          30
+        );
+      } else if (filters.marketplace === 'WILDBERRIES' || filters.marketplace === 'WB') {
+        // Загружаем только WB чаты
+        response = await getWBChats(
+          token, 
+          apiFilters.is_read, 
+          apiFilters.chat_status, 
+          30,
+          0
+        );
+      } else {
+        // Загружаем Ozon чаты (или другие маркетплейсы)
+        response = await getChatList(
+          token, 
+          apiFilters.is_read, 
+          apiFilters.chat_status, 
+          30,
+          0,
+          apiFilters.marketplace
         );
       }
       
+      let filteredChats = response.chats;
+      
+      // Дополнительная фильтрация по client_id если нужно
       if (filters.client_id !== 'all') {
         const clientId = parseInt(filters.client_id);
         filteredChats = filteredChats.filter(chat => 
@@ -92,15 +110,25 @@ export const useChats = (token: string) => {
     setLoadingChats(prev => ({ ...prev, [chatId]: true }));
     
     try {
-      const request: ChatHistoryRequest = {
-        client_id: clientId,
-        chat_id: chatId,
-        direction: 'Backward',
-        limit: 50,
-        max_messages: 1000
-      };
+      // Определяем маркетплейс по ID чата
+      const isWBChat = chatId.includes(':');
+      
+      let response;
 
-      const response = await getChatHistory(token, request);
+      if (isWBChat) {
+        // Используем WB API для WB чатов
+        response = await getWBChatHistory(token, chatId, 50);
+      } else {
+        // Используем стандартный API для Ozon чатов
+        const request: ChatHistoryRequest = {
+          client_id: clientId,
+          chat_id: chatId,
+          direction: 'Backward',
+          limit: 50,
+          max_messages: 1000
+        };
+        response = await getChatHistory(token, request);
+      }
       
       const sortedMessages = sortMessagesByTime(response.messages);
       
@@ -176,18 +204,33 @@ export const useChats = (token: string) => {
     if (!token) return { success: false, error: 'No token' };
 
     try {
-      const response = await sendMessage(token, {
-        client_id: clientId,
-        chat_id: chatId,
-        text
-      });
+      // Определяем маркетплейс по ID чата
+      const isWBChat = chatId.includes(':');
+      
+      let response;
+
+      if (isWBChat) {
+        // Для WB используем специальный метод
+        response = await sendMessage(token, {
+          client_id: clientId,
+          chat_id: chatId,
+          text
+        });
+      } else {
+        // Для Ozon используем стандартный метод
+        response = await sendMessage(token, {
+          client_id: clientId,
+          chat_id: chatId,
+          text
+        });
+      }
 
       if (response.success) {
         const now = new Date();
         const { fullDateTime } = formatMessageDateTime(now.toISOString());
         
         const newMessage: MessageType = {
-          id: response.message_id || Date.now(),
+          id: response.message_id?.toString() || Date.now().toString(),
           text,
           time: 'Только что',
           isOwn: true,
@@ -278,6 +321,67 @@ export const useChats = (token: string) => {
     setError(null);
   }, []);
 
+  // Функция для загрузки только WB чатов (отдельно)
+  const loadWBChats = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await getWBChats(
+        token, 
+        filters.is_read === 'unread' ? 'unread' : 'all', 
+        'All', 
+        30,
+        0
+      );
+      
+      const chatsWithEmptyMessages = response.chats.map(chat => ({
+        ...chat,
+        messages: []
+      }));
+      
+      const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
+      
+      setChats(sortedChats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки чатов WB');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filters.is_read]);
+
+  // Функция для загрузки всех чатов (Ozon + WB)
+  const loadAllChats = useCallback(async () => {
+    if (!token) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await getAllChats(
+        token, 
+        filters.is_read === 'unread' ? 'unread' : 'all', 
+        'All', 
+        30
+      );
+      
+      const chatsWithEmptyMessages = response.chats.map(chat => ({
+        ...chat,
+        messages: []
+      }));
+      
+      const sortedChats = sortChatsByDate(chatsWithEmptyMessages);
+      
+      setChats(sortedChats);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Ошибка загрузки всех чатов');
+    } finally {
+      setLoading(false);
+    }
+  }, [token, filters.is_read]);
+
   useEffect(() => {
     if (filtersApplied) {
       loadChats();
@@ -293,6 +397,8 @@ export const useChats = (token: string) => {
     filtersApplied,
     loadingChats,
     loadChats,
+    loadWBChats, // Новая функция для загрузки только WB
+    loadAllChats, // Новая функция для загрузки всех чатов
     loadChatHistory,
     handleChatSelect,
     sendChatMessage,
